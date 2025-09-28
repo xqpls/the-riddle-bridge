@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Riddle Bridge</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Custom styles to enforce pixelated look and handle background sizing */
+        .pixelated {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        .riddle-text {
+            font-family: 'VT323', monospace;
+        }
+
+        /* Responsive Game Container */
+        #game-container {
+            /* Use max-width and fluid width for responsiveness */
+            width: 95vw;
+            max-width: 960px;
+            /* Maintain the 960x600 aspect ratio for pixel integrity */
+            aspect-ratio: 1.6 / 1; 
+            height: auto;
+            position: relative;
+            overflow: hidden;
+            border: 6px solid #ff00ff; /* Stronger neon border */
+            box-shadow: 0 0 15px #ff00ff, 0 0 30px #ff00ff;
+            background: #1a0f2b;
+        }
+
+        /* Background styling (Updated to background.png path) */
+        #background {
+            background-image: url('assets/images/background.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        /* Bridge base styling */
+        #bridge-base {
+            background-image: url('assets/images/bridge.png');
+            background-size: cover;
+            background-position: center;
+            /* Creates a slight fade into the lava pit */
+            mask-image: linear-gradient(to top, transparent 30%, black 70%);
+            -webkit-mask-image: linear-gradient(to top, transparent 30%, black 70%);
+        }
+
+        /* UI Glow for Riddle Panel */
+        .ui-glow {
+            box-shadow: 0 0 15px #ff00ff, 0 0 30px #ff00ff, 0 0 45px #ff00ff;
+            animation: glow-pulse 2s infinite alternate;
+        }
+
+        @keyframes glow-pulse {
+            0% { box-shadow: 0 0 15px #ff00ff, 0 0 30px #ff00ff; }
+            100% { box-shadow: 0 0 25px #ff00ff, 0 0 50px #ff00ff, 0 0 75px #ff00ff; }
+        }
+
+        /* LAVA DEATH SCREEN EFFECT */
+        .lava-background {
+            background: linear-gradient(45deg, #8B0000, #FF4500, #FF8C00, #FFD700);
+            animation: lavaFlow 3s infinite alternate;
+            background-size: 400% 400%;
+        }
+
+        @keyframes lavaFlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Character animations */
+        @keyframes walk {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+            100% { transform: translateY(0); }
+        }
+
+        .walking {
+            animation: walk 0.3s infinite;
+        }
+        
+        /* Character Image Setting */
+        #character {
+            background-image: url('assets/images/stand pose.png');
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+
+
+        /* Bridge tile animations */
+        @keyframes tile-appear {
+            0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        .bridge-tile {
+            animation: tile-appear 0.8s ease-out forwards;
+        }
+
+        /* Missing part animations */
+        @keyframes miss-part-fall {
+            0% { transform: translateY(-100px) rotate(0deg); opacity: 0; }
+            100% { transform: translateY(0) rotate(360deg); opacity: 1; }
+        }
+
+        .miss-part-active {
+            animation: miss-part-fall 1s ease-out forwards;
+        }
+
+        /* Fall animation */
+        @keyframes fall {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(500px) rotate(90deg); opacity: 0; }
+        }
+
+        .falling {
+            animation: fall 2s ease-in forwards;
+        }
+
+        /* Light bar animations */
+        @keyframes light-flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .light-low {
+            animation: light-flicker 1s infinite;
+        }
+
+        /* Responsive adjustments */
+        /* Note: For a pixel art game with fixed positions, percentage-based positioning is ideal, but given the existing code structure, we use media queries to adjust the fixed pixel positions relative to the container size, as the container size itself is now fluid. */
+        @media (max-width: 768px) {
+            #character {
+                width: 60px;
+                height: 120px;
+                bottom: 120px;
+                left: 100px;
+            }
+            
+            #bridge-container {
+                bottom: 120px;
+                left: 200px;
+                gap: 2px;
+            }
+            
+            #miss-part {
+                bottom: 100px;
+                left: 450px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #character {
+                width: 50px;
+                height: 100px;
+                bottom: 100px;
+                left: 80px;
+            }
+            
+            #bridge-container {
+                bottom: 100px;
+                left: 150px;
+                gap: 1px;
+            }
+            
+            #miss-part {
+                bottom: 80px;
+                left: 350px;
+                width: 80px;
+                height: 60px;
+            }
+            
+            #riddle-ui {
+                width: 95%;
+                padding: 1rem;
+            }
+            
+            .riddle-text {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+    <!-- GAME CONTAINER -->
+    <div id="game-container" class="relative">
+        
+        <!-- UI ELEMENTS -->
+        
+        <!-- Light Bar (Fixed Top Left) -->
+        <div id="light-bar" class="absolute top-4 left-4 z-20 bg-black/50 p-2 rounded-lg">
+            <img id="light-bar-img" src="assets/images/light 5.png" alt="Light Bar" class="pixelated h-12">
+            <div id="light-text" class="riddle-text text-green-400 text-center text-sm mt-1">LIGHT: 5/5</div>
+        </div>
+
+        <!-- Level Display -->
+        <div id="level-display" class="absolute top-4 right-4 z-20 bg-black/50 p-3 rounded-lg riddle-text text-blue-400 text-lg">
+            LEVEL: 1/10
+        </div>
+
+        <!-- Background (Set via CSS) -->
+        <div id="background" class="absolute top-0 left-0 w-full h-full z-0"></div>
+
+        <!-- Character Sprite (Background set via JS/CSS) -->
+        <div id="character" class="absolute bottom-[160px] left-[150px] w-[70px] h-[140px] z-10 pixelated transition-all duration-500 ease-linear"></div>
+
+        <!-- Bridge Base -->
+        <div id="bridge-base" class="absolute bottom-[100px] left-0 w-full h-[200px] z-5 bg-cover bg-center"></div>
+
+        <!-- Bridge Pieces Container -->
+        <div id="bridge-container" class="absolute bottom-[80px] left-[100px] flex z-[8] gap-4">
+            <!-- Bridge tiles will be inserted here by JavaScript -->
+        </div>
+
+        <!-- Missing Bridge Part (Falls in when light is sacrificed) -->
+        <div id="miss-part" class="absolute bottom-[120px] left-[650px] w-[100px] h-[80px] z-[7] pixelated hidden">
+            <img src="assets/images/bridge miss part.png" alt="Missing Bridge Part" class="w-full h-full">
+        </div>
+        
+        <!-- DEATH SCREEN OVERLAY -->
+        <div id="death-screen" class="hidden absolute top-0 left-0 w-full h-full bg-black/90 z-50 flex flex-col items-center justify-center">
+            <img id="death-image" src="assets/images/you died.png" alt="You Died" class="pixelated w-1/2 mt-[-50px]">
+            <p id="death-message" class="riddle-text text-red-500 text-3xl mt-4 hidden"></p>
+            <button onclick="window.location.reload()" class="riddle-text text-red-700 text-xl mt-8 px-6 py-2 border-2 border-red-700 bg-black/50 hover:bg-red-900 transition duration-300 transform hover:scale-105 active:scale-95 shadow-xl">
+                RESTART
+            </button>
+        </div>
+
+        <!-- WIN SCREEN -->
+        <div id="win-screen" class="hidden absolute top-0 left-0 w-full h-full bg-black/90 z-50 flex flex-col items-center justify-center">
+            <img id="win-image" src="assets/images/label.png" alt="You Win" class="pixelated w-1/2 mt-[-50px]">
+            <p id="win-message" class="riddle-text text-green-500 text-3xl mt-4"></p>
+            <button onclick="window.location.reload()" class="riddle-text text-green-700 text-xl mt-8 px-6 py-2 border-2 border-green-700 bg-black/50 hover:bg-green-900 transition duration-300 transform hover:scale-105 active:scale-95 shadow-xl">
+                PLAY AGAIN
+            </button>
+        </div>
+
+        <!-- RIDDLE UI PANEL -->
+        <div id="riddle-ui" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 max-w-lg p-6 bg-[#1a0f2b] border-4 border-fuchsia-500 ui-glow z-40 rounded-xl">
+            <div class="flex items-start mb-4">
+                <!-- UPDATED RIDDLE ICON -->
+                <img src="assets/images/image_ac0811.png" alt="Riddle Icon" class="pixelated w-12 h-12 mr-4">
+                <p id="riddle-text" class="riddle-text text-fuchsia-300 text-xl leading-relaxed"></p>
+            </div>
+
+            <input type="text" id="answer-input" placeholder="Type your answer here..." 
+                    class="riddle-text w-full p-4 mb-4 bg-black/70 border-2 border-fuchsia-700 text-fuchsia-100 placeholder-fuchsia-500 focus:outline-none focus:border-fuchsia-400 rounded-lg text-lg">
+            
+            <div class="flex justify-between space-x-4">
+                <!-- ANSWER BUTTON -->
+                <button id="answer-button" 
+                        class="flex-1 px-6 py-4 bg-blue-600/70 border-2 border-blue-400 text-white font-bold hover:bg-blue-700/70 transition duration-150 relative overflow-hidden group rounded-lg shadow-lg">
+                    <img src="assets/images/answer icon.png" alt="Answer" class="w-full h-full object-cover absolute top-0 left-0 opacity-80 pixelated rounded-lg">
+                    <span class="riddle-text relative z-10 text-xl tracking-wider drop-shadow-lg">ANSWER</span>
+                </button>
+                
+                <!-- SACRIFICE BUTTON -->
+                <button id="sacrifice-button" 
+                        class="flex-1 px-6 py-4 bg-red-600/70 border-2 border-red-400 text-white font-bold hover:bg-red-700/70 transition duration-150 relative overflow-hidden group rounded-lg shadow-lg">
+                    <img src="assets/images/sacrifice light icon.png" alt="Sacrifice" class="w-full h-full object-cover absolute top-0 left-0 opacity-80 pixelated rounded-lg">
+                    <span class="riddle-text relative z-10 text-xl tracking-wider drop-shadow-lg">SACRIFICE LIGHT</span>
+                </button>
+            </div>
+
+            <p id="error-message" class="riddle-text text-red-500 text-center mt-4 text-lg hidden">Incorrect answer. Try again or sacrifice light.</p>
+            <p id="sacrifice-message" class="riddle-text text-orange-500 text-center mt-4 text-lg hidden">You sacrificed one light!</p>
+        </div>
+    </div>
+
+    <script>
+// --- GAME ASSETS AND CONFIGURATION ---
+const WALK_DISTANCE = 120; // Step size in pixels
+const PLAYER_WALK_DURATION = 1000; // Milliseconds for walk animation
+const MAX_LIGHT = 5; // Maximum light level
+const TOTAL_LEVELS = 10;
+
+const ASSETS = {
+    LIGHT_BAR: [
+        'assets/images/light 0.png',
+        'assets/images/light 1.png', 
+        'assets/images/light 2.png',
+        'assets/images/light 3.png',
+        'assets/images/light 4.png',
+        'assets/images/light 5.png'
+    ],
+    BRIDGE_TILE: 'assets/images/bridge miss part.png',
+    CHARACTER_STAND: 'assets/images/stand pose.png',
+    CHARACTER_WALK_1: 'assets/images/first step pose.png',
+    CHARACTER_WALK_2: 'assets/images/second step pose.png',
+    DEATH_IMAGE: 'assets/images/you died.png',
+    WIN_IMAGE: 'assets/images/label.png',
+};
+
+const RIDDLES = [
+    {
+        "riddle": "Q: A cowboy rode into town on Friday. He stayed for three nights and rode out on Friday. How is this possible?",
+        "answer": ["his horse's name is friday", "horse's name is friday", "friday"],
+    },
+    {
+        "riddle": "Q: What is full of holes but still holds water?",
+        "answer": ["sponge"],
+    },
+    {
+        "riddle": "Q: What question can you never answer yes to?",
+        "answer": ["are you asleep yet", "are you asleep"],
+    },
+    {
+        "riddle": "Q: I am always hungry, I must always be fed, the finger I lick will soon turn red. What am I?",
+        "answer": ["fire"],
+    },
+    {
+        "riddle": "Q: What is always coming, but never arrives?",
+        "answer": ["tomorrow"],
+    },
+    {
+        "riddle": "Q: What has an eye but cannot see?",
+        "answer": ["needle"],
+    },
+    {
+        "riddle": "Q: What runs but never walks, often murmurs, never talks, has a bed but never sleeps, has a mouth but never eats?",
+        "answer": ["river"],
+    },
+    {
+        "riddle": "Q: What goes up, but never comes down?",
+        "answer": ["age", "your age"],
+    },
+    {
+        "riddle": "Q: What has cities, but no houses; forests, but no trees; and water, but no fish?",
+        "answer": ["map"],
+    },
+    {
+        "riddle": "Q: If you have me, you want to share me. If you share me, you haven't kept me. What am I?",
+        "answer": ["secret"],
+    },
+];
+
+// --- GAME STATE ---
+let gameState = {
+    currentRiddleIndex: 0,
+    tilesPlaced: 0,
+    currentLight: MAX_LIGHT,
+    isWalking: false,
+    diedFromLava: false,
+};
+
+// --- DOM REFERENCES ---
+const ui = {
+    riddleUI: document.getElementById('riddle-ui'),
+    riddleText: document.getElementById('riddle-text'),
+    answerInput: document.getElementById('answer-input'),
+    answerButton: document.getElementById('answer-button'),
+    sacrificeButton: document.getElementById('sacrifice-button'),
+    lightBarImg: document.getElementById('light-bar-img'),
+    lightText: document.getElementById('light-text'),
+    levelDisplay: document.getElementById('level-display'),
+    character: document.getElementById('character'),
+    bridgeContainer: document.getElementById('bridge-container'),
+    missPart: document.getElementById('miss-part'),
+    deathScreen: document.getElementById('death-screen'),
+    winScreen: document.getElementById('win-screen'),
+    deathImage: document.getElementById('death-image'),
+    deathMessage: document.getElementById('death-message'),
+    winMessage: document.getElementById('win-message'),
+    errorMessage: document.getElementById('error-message'),
+    sacrificeMessage: document.getElementById('sacrifice-message'),
+    background: document.getElementById('background'),
+    bridgeBase: document.getElementById('bridge-base'),
+};
+
+// --- CORE FUNCTIONS ---
+
+/**
+ * Updates the light bar image and text based on the current light level.
+ */
+function updateLightBar() {
+    const lightIndex = Math.min(gameState.currentLight, MAX_LIGHT);
+    // Use Math.max(0, ...) to ensure index doesn't go below 0
+    ui.lightBarImg.src = ASSETS.LIGHT_BAR[Math.max(0, lightIndex)];
+    ui.lightText.textContent = `LIGHT: ${gameState.currentLight}/${MAX_LIGHT}`;
+    
+    // Add flicker effect when light is low
+    if (gameState.currentLight <= 2) {
+        ui.lightBarImg.classList.add('light-low');
+    } else {
+        ui.lightBarImg.classList.remove('light-low');
+    }
+}
+
+/**
+ * Updates the current level display.
+ */
+function updateLevelDisplay() {
+    ui.levelDisplay.textContent = `LEVEL: ${gameState.currentRiddleIndex + 1}/${TOTAL_LEVELS}`;
+}
+
+/**
+ * Reduces light by 1. Returns true if successful, false if light is 0.
+ */
+function reduceLight() {
+    if (gameState.currentLight > 0) {
+        gameState.currentLight -= 1;
+        updateLightBar();
+        
+        // Show sacrifice message
+        ui.sacrificeMessage.classList.remove('hidden');
+        setTimeout(() => {
+            ui.sacrificeMessage.classList.add('hidden');
+        }, 2000);
+        
+        return true;
+    } else {
+        // Light is zero, immediate death.
+        gameState.diedFromLava = true;
+        return false; 
+    }
+}
+
+/**
+ * Checks if the user's input matches any of the correct answers.
+ * @param {string} userInput - The answer provided by the user.
+ * @param {string[]} correctAnswers - Array of acceptable answers.
+ * @returns {boolean} True if the answer is correct, false otherwise.
+ */
+function isAnswerCorrect(userInput, correctAnswers) {
+    // Clean input: lowercase, trim, remove non-alphanumeric characters (except spaces)
+    const cleanInput = userInput.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '');
+    return correctAnswers.some(answer => 
+        answer.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '') === cleanInput
+    );
+}
+
+/**
+ * Sets up and displays the current riddle UI.
+ */
+function setupRiddle() {
+    if (gameState.currentRiddleIndex >= TOTAL_LEVELS) {
+        showWinScreen();
+        return;
+    }
+
+    const currentRiddle = RIDDLES[gameState.currentRiddleIndex];
+    ui.riddleText.textContent = `${currentRiddle.riddle}`;
+    ui.answerInput.value = '';
+    ui.riddleUI.classList.remove('hidden');
+    ui.errorMessage.classList.add('hidden');
+    ui.sacrificeMessage.classList.add('hidden');
+
+    updateLevelDisplay();
+
+    // Re-enable buttons and focus input
+    ui.answerButton.disabled = false;
+    ui.sacrificeButton.disabled = false;
+    setTimeout(() => ui.answerInput.focus(), 100);
+}
+
+/**
+ * Hides the riddle UI panel.
+ */
+function hideRiddleUI() {
+    ui.riddleUI.classList.add('hidden');
+}
+
+/**
+ * Displays the game over screen.
+ */
+function gameOver() {
+    console.log("Game Over");
+    ui.deathScreen.classList.remove('hidden');
+    
+    if (gameState.diedFromLava) {
+        // Display lava death specific message
+        ui.deathScreen.classList.add('lava-background');
+        ui.deathMessage.textContent = 'YOU FELL INTO THE LAVA!';
+        ui.deathMessage.classList.remove('hidden');
+    } else {
+        // Default death message (e.g., failed riddle, fell off bridge)
+        ui.deathScreen.classList.remove('lava-background');
+        ui.deathMessage.classList.add('hidden');
+    }
+}
+
+/**
+ * Displays the win screen with a message based on remaining light.
+ */
+function showWinScreen() {
+    let winMessage = 'CONGRATULATIONS! YOU CROSSED THE BRIDGE!';
+    
+    if (gameState.currentLight <= 2) {
+        winMessage = 'YOU BARELY MADE IT! SO CLOSE TO THE LAVA...';
+    } else if (gameState.currentLight >= 4) {
+        winMessage = 'EXCELLENT! YOU CROSSED WITH MOST OF YOUR LIGHT INTACT!';
+    }
+
+    ui.winMessage.textContent = winMessage;
+    ui.winScreen.classList.remove('hidden');
+}
+
+// --- BRIDGE AND MOVEMENT FUNCTIONS ---
+
+/**
+ * Creates and appends a new bridge tile element.
+ */
+function placeBridgeTile() {
+    const tile = document.createElement('img');
+    tile.src = ASSETS.BRIDGE_TILE;
+    tile.alt = 'Bridge Tile';
+    tile.classList.add('pixelated', 'w-24', 'h-16', 'bridge-tile');
+    
+    ui.bridgeContainer.appendChild(tile);
+    gameState.tilesPlaced += 1;
+}
+
+/**
+ * Makes the missing bridge part visible with an animation.
+ */
+function showMissPart() {
+    ui.missPart.classList.remove('hidden');
+    ui.missPart.classList.add('miss-part-active');
+}
+
+/**
+ * Hides the missing bridge part.
+ */
+function hideMissPart() {
+    ui.missPart.classList.add('hidden');
+    ui.missPart.classList.remove('miss-part-active');
+}
+
+/**
+ * Animates the character movement.
+ * @param {number} duration - Duration of the walk in ms.
+ * @param {number} targetX - The final left position in pixels.
+ * @returns {Promise<void>} Resolves when animation is complete.
+ */
+function animateWalk(duration, targetX) {
+    return new Promise(resolve => {
+        let startTime;
+        const charElement = ui.character;
+        const startX = parseInt(charElement.style.left || '150');
+        
+        // Start walking animation class (for vertical bounce)
+        charElement.classList.add('walking');
+        
+        // Switch between walk poses (horizontal movement is handled by CSS transition/RAF)
+        let walkFrame = 1;
+        const walkInterval = setInterval(() => {
+            walkFrame = walkFrame === 1 ? 2 : 1;
+            charElement.style.backgroundImage = `url(${ASSETS['CHARACTER_WALK_' + walkFrame]})`;
+        }, 200); // Frame duration for walk cycle
+
+        function step(timestamp) {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Linear movement
+            const newX = startX + (targetX - startX) * progress;
+            charElement.style.left = newX + 'px';
+
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                // Movement finished
+                clearInterval(walkInterval);
+                charElement.classList.remove('walking');
+                charElement.style.backgroundImage = `url(${ASSETS.CHARACTER_STAND})`;
+                charElement.style.left = targetX + 'px'; // Ensure final position is exact
+                resolve();
+            }
+        }
+        requestAnimationFrame(step);
+    });
+}
+
+/**
+ * Handles the logic after a riddle attempt (correct answer or sacrifice).
+ * @param {boolean} isSuccess - True if player crosses, false if they fall.
+ */
+async function placeBridgeAndMovePlayer(isSuccess) {
+    if (gameState.isWalking) return;
+    gameState.isWalking = true;
+    
+    ui.answerButton.disabled = true;
+    ui.sacrificeButton.disabled = true;
+    hideRiddleUI();
+    
+    const currentX = parseInt(ui.character.style.left || '150');
+    const targetX = currentX + WALK_DISTANCE;
+    
+    if (!isSuccess) {
+        // Fall sequence (happens only if light runs out)
+        console.log("Initiating Fall Sequence");
+        
+        // Brief step to the edge
+        await animateWalk(PLAYER_WALK_DURATION * 0.5, currentX + WALK_DISTANCE / 2);
+        
+        // Initiate fall animation
+        ui.character.classList.add('falling');
+        
+        setTimeout(() => {
+            gameOver();
+        }, 2000);
+
+    } else {
+        // Successful crossing
+        if (gameState.currentRiddleIndex > 0) {
+            placeBridgeTile();
+        }
+        
+        // Show missing part animation if a light was sacrificed
+        if (gameState.currentLight < MAX_LIGHT && gameState.currentRiddleIndex === gameState.tilesPlaced) {
+            showMissPart();
+        }
+        
+        await animateWalk(PLAYER_WALK_DURATION, targetX);
+        
+        // Hide miss part after crossing
+        hideMissPart();
+        
+        _onPlayerMoveFinished();
+    }
+}
+
+/**
+ * Clean-up and setup for the next level/riddle.
+ */
+function _onPlayerMoveFinished() {
+    gameState.isWalking = false;
+    // Only increment riddle index if we passed the current challenge
+    gameState.currentRiddleIndex += 1;
+    
+    if (gameState.currentRiddleIndex >= TOTAL_LEVELS) {
+        showWinScreen();
+    } else {
+        // Small delay before next riddle appears
+        setTimeout(setupRiddle, 1000);
+    }
+}
+
+// --- EVENT LISTENERS ---
+
+ui.answerButton.addEventListener('click', () => {
+    if (gameState.isWalking) return;
+    
+    const userInput = ui.answerInput.value;
+    const currentRiddle = RIDDLES[gameState.currentRiddleIndex];
+    
+    if (!currentRiddle) return;
+
+    if (isAnswerCorrect(userInput, currentRiddle.answer)) {
+        ui.errorMessage.classList.add('hidden');
+        placeBridgeAndMovePlayer(true);
+    } else {
+        ui.errorMessage.classList.remove('hidden');
+    }
+});
+
+ui.sacrificeButton.addEventListener('click', () => {
+    if (gameState.isWalking) return;
+    
+    const successfullyReduced = reduceLight();
+    
+    if (successfullyReduced) {
+        // Move player forward, consuming a light
+        placeBridgeAndMovePlayer(true);
+    } else {
+        // Light was 0, fall into lava
+        placeBridgeAndMovePlayer(false);
+    }
+});
+
+// Enter key support for answer input
+ui.answerInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        ui.answerButton.click();
+    }
+});
+
+// --- INITIALIZATION ---
+function init() {
+    // Set initial character pose (already set via CSS, but good for consistency)
+    ui.character.style.backgroundImage = `url(${ASSETS.CHARACTER_STAND})`;
+    
+    // Set initial light bar and level display
+    updateLightBar();
+    updateLevelDisplay();
+    
+    // Start the first riddle
+    setTimeout(setupRiddle, 1000);
+}
+
+window.onload = init;
+    </script>
+</body>
+</html>
